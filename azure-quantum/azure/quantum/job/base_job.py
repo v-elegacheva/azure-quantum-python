@@ -344,12 +344,10 @@ class BaseJob(WorkspaceItem):
         :rtype: str
         """
 
-        # Use Job's default container if not specified
+        # Use Job's default container if not specified. self._details.container_uri is
+        # unsigned, so always fetch a fresh SAS-signed URI instead of reusing it.
         if container_uri is None:
-            if self._details.container_uri is None:
-                container_uri = self.workspace.get_container_uri(job_id=self.id)
-            else:
-                container_uri = self._details.container_uri
+            container_uri = self.workspace.get_container_uri(job_id=self.id)
 
         uploaded_blob_uri = self.upload_input_data(
             container_uri = container_uri,
@@ -377,13 +375,11 @@ class BaseJob(WorkspaceItem):
         :rtype: bytes
         """
 
-        # Use Job's default container if not specified
+        # Use Job's default container if not specified. self._details.container_uri is
+        # unsigned, so always fetch a fresh SAS-signed URI instead of reusing it.
         if container_uri is None:
-            if self._details.container_uri is None:
-                container_uri = self.workspace.get_container_uri(job_id=self.id)
-            else:
-                container_uri = self._details.container_uri
-        
+            container_uri = self.workspace.get_container_uri(job_id=self.id)
+
         container_client = ContainerClient.from_container_url(container_uri)
         blob_client = container_client.get_blob_client(name)
         response = blob_client.download_blob().readall()
@@ -399,11 +395,9 @@ class BaseJob(WorkspaceItem):
         :rtype: list[~azure.storage.blob.BlobProperties]
         """
 
-        # Use the job's linked storage container.
-        if self._details.container_uri is None:
-            container_uri = self.workspace.get_container_uri(job_id=self.id)
-        else:
-            container_uri = self._details.container_uri
+        # Use the job's linked storage container. self._details.container_uri is unsigned,
+        # so always fetch a fresh SAS-signed URI instead of reusing it.
+        container_uri = self.workspace.get_container_uri(job_id=self.id)
 
         container_client = ContainerClient.from_container_url(container_uri)
         return list(container_client.list_blobs())
