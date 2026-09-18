@@ -347,7 +347,10 @@ class BaseJob(WorkspaceItem):
         # Use Job's default container if not specified. self._details.container_uri is
         # unsigned, so always fetch a fresh SAS-signed URI instead of reusing it.
         if container_uri is None:
-            container_uri = self.workspace.get_container_uri(job_id=self.id)
+            container_uri = self.workspace.get_container_uri(
+                job_id=self.id,
+                container_name=self.container_name,
+            )
 
         uploaded_blob_uri = self.upload_input_data(
             container_uri = container_uri,
@@ -378,7 +381,10 @@ class BaseJob(WorkspaceItem):
         # Use Job's default container if not specified. self._details.container_uri is
         # unsigned, so always fetch a fresh SAS-signed URI instead of reusing it.
         if container_uri is None:
-            container_uri = self.workspace.get_container_uri(job_id=self.id)
+            container_uri = self.workspace.get_container_uri(
+                job_id=self.id,
+                container_name=self.container_name,
+            )
 
         container_client = ContainerClient.from_container_url(container_uri)
         blob_client = container_client.get_blob_client(name)
@@ -397,7 +403,10 @@ class BaseJob(WorkspaceItem):
 
         # Use the job's linked storage container. self._details.container_uri is unsigned,
         # so always fetch a fresh SAS-signed URI instead of reusing it.
-        container_uri = self.workspace.get_container_uri(job_id=self.id)
+        container_uri = self.workspace.get_container_uri(
+            job_id=self.id,
+            container_name=self.container_name,
+        )
 
         container_client = ContainerClient.from_container_url(container_uri)
         return list(container_client.list_blobs())

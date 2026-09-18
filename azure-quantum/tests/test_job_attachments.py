@@ -3,17 +3,19 @@
 # Licensed under the MIT License.
 ##
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 from azure.quantum import Job, JobDetails
 
 
-UNSIGNED_CONTAINER_URI = "https://acct.blob.core.windows.net/job-id"
+JOB_ID = "job-id"
+DEFAULT_CONTAINER_NAME = f"job-{JOB_ID}"
+UNSIGNED_CONTAINER_URI = f"https://acct.blob.core.windows.net/{DEFAULT_CONTAINER_NAME}"
 SIGNED_CONTAINER_URI = f"{UNSIGNED_CONTAINER_URI}?sas"
 
 
 def _job_with_container(container_uri=UNSIGNED_CONTAINER_URI, workspace=None) -> Job:
     job_details = JobDetails(
-        id="job-id",
+        id=JOB_ID,
         name="",
         provider_id="",
         target="",
@@ -37,7 +39,10 @@ def test_list_attachments_returns_container_blobs(mock_container_client):
 
     result = job.list_attachments()
 
-    workspace.get_container_uri.assert_called_once_with(job_id="job-id")
+    workspace.get_container_uri.assert_called_once_with(
+        job_id=JOB_ID,
+        container_name=DEFAULT_CONTAINER_NAME,
+    )
     mock_container_client.from_container_url.assert_called_once_with(SIGNED_CONTAINER_URI)
     assert result == [blob_a, blob_b]
 
@@ -53,7 +58,10 @@ def test_list_attachments_uses_workspace_container_when_unset(mock_container_cli
 
     result = job.list_attachments()
 
-    workspace.get_container_uri.assert_called_once_with(job_id="job-id")
+    workspace.get_container_uri.assert_called_once_with(
+        job_id=JOB_ID,
+        container_name=DEFAULT_CONTAINER_NAME,
+    )
     mock_container_client.from_container_url.assert_called_once_with(SIGNED_CONTAINER_URI)
     assert result == []
 
@@ -66,7 +74,10 @@ def test_upload_attachment_uses_fresh_workspace_container_uri():
 
     result = job.upload_attachment("attachment", b"data")
 
-    workspace.get_container_uri.assert_called_once_with(job_id="job-id")
+    workspace.get_container_uri.assert_called_once_with(
+        job_id=JOB_ID,
+        container_name=DEFAULT_CONTAINER_NAME,
+    )
     job.upload_input_data.assert_called_once_with(
         container_uri=SIGNED_CONTAINER_URI,
         blob_name="attachment",
@@ -85,7 +96,10 @@ def test_download_attachment_uses_fresh_workspace_container_uri(mock_container_c
 
     result = job.download_attachment("attachment")
 
-    workspace.get_container_uri.assert_called_once_with(job_id="job-id")
+    workspace.get_container_uri.assert_called_once_with(
+        job_id=JOB_ID,
+        container_name=DEFAULT_CONTAINER_NAME,
+    )
     mock_container_client.from_container_url.assert_called_once_with(SIGNED_CONTAINER_URI)
     assert result == b"data"
 
@@ -109,3 +123,41 @@ def test_attachment_methods_honor_explicit_container_uri(mock_container_client):
         input_data=b"data",
     )
     mock_container_client.from_container_url.assert_called_once_with(explicit_uri)
+
+
+@patch("azure.quantum.job.base_job.ContainerClient")
+def test_attachment_methods_preserve_custom_container_name(mock_container_client):
+    custom_container_name = "custom-container"
+    custom_unsigned_uri = f"https://acct.blob.core.windows.net/{custom_container_name}"
+    custom_signed_uri = f"{custom_unsigned_uri}?sas"
+    workspace = Mock()
+    workspace.get_container_uri.return_value = custom_signed_uri
+    job = _job_with_container(container_uri=custom_unsigned_uri, workspace=workspace)
+    job.upload_input_data = Mock(return_value="uploaded-uri")
+    container_client = mock_container_client.from_container_url.return_value
+    container_client.list_blobs.return_value = []
+    container_client.get_blob_client.return_value.download_blob.return_value.readall.return_value = b"data"
+
+    job.upload_attachment("upload", b"data")
+    attachments = job.list_attachments()
+    downloaded = job.download_attachment("download")
+
+    workspace.get_container_uri.assert_has_calls(
+        [
+            call(job_id=JOB_ID, container_name=custom_container_name),
+            call(job_id=JOB_ID, container_name=custom_container_name),
+            call(job_id=JOB_ID, container_name=custom_container_name),
+        ]
+    )
+    assert workspace.get_container_uri.call_count == 3
+    job.upload_input_data.assert_called_once_with(
+        container_uri=custom_signed_uri,
+        blob_name="upload",
+        input_data=b"data",
+    )
+    assert mock_container_client.from_container_url.call_args_list == [
+        call(custom_signed_uri),
+        call(custom_signed_uri),
+    ]
+    assert attachments == []
+    assert downloaded == b"data"
