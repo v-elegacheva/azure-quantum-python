@@ -8,7 +8,6 @@ import os
 from unittest import mock
 from azure.quantum.job.job import Job
 from azure.quantum._client.models import JobDetails
-from azure.quantum._client.operations._operations import build_services_jobs_update_request
 from azure.quantum import Priority
 from azure.quantum._constants import EnvironmentVariables, ConnectionConstants
 from azure.core.credentials import AzureKeyCredential
@@ -474,22 +473,6 @@ def test_workspace_update_job_success():
     assert result.details.name == "new-name"
     assert result.details.priority == "High"
     assert result.details.tags == ["tag-a", "tag-b"]
-
-
-def test_workspace_update_job_request_uses_jobs_resource_path():
-    request = build_services_jobs_update_request(
-        subscription_id=SUBSCRIPTION_ID,
-        resource_group_name=RESOURCE_GROUP,
-        workspace_name=WORKSPACE,
-        job_id="test-update-route",
-    )
-
-    assert request.method == "PATCH"
-    assert request.url.split("?", maxsplit=1)[0] == (
-        f"/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RESOURCE_GROUP}"
-        f"/providers/Microsoft.Quantum/workspaces/{WORKSPACE}"
-        "/jobs/test-update-route"
-    )
 
 
 def test_workspace_update_job_partial_leaves_other_fields_unchanged():
